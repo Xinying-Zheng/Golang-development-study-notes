@@ -1,0 +1,49 @@
+Basics tutorial | Go | gRPC
+	1. 定义于 *.proto 中
+		a. 定义service
+		service RouteGuide {
+...
+}
+		b. 在service定义的内部，可以定义rpc方法。提供了4种不同的rpc方法
+			i. Simple RPC：client 以 stub 发送一个 request 给 server，并且等待response。形式和普通的函数调用类似。
+			// Obtains the feature at a given position.
+rpc GetFeature(Point) returns(Feature) {}
+			
+			ii. server-side streaming RPC: client 发送一个 request 给 server，并且得到一个 stream， 从 stream 中读出一系列的消息。 需要在 response 类型前加上一个stream关键字。
+			// Obtains the Features available within the given Rectangle.  Results are
+// streamed rather than returned at once (e.g. in a response message with a
+// repeated field), as the rectangle may cover a large area and contain a
+// huge number of features.
+rpc ListFeatures(Rectangle) returns(stream Feature) {}
+			
+			iii. client-side streaming RPC: client 会写入一个序列的消息并且通过 stream 发送。当 client 完成写入，等待server的读出和等待server的response。需要在 request 类型前加一个 stream 关键字。
+			// Accepts a stream of RouteNotes sent while a route is being traversed,
+// while receiving other RouteNotes (e.g. from other users).
+rpc RouteChat(stream RouteNote) returns(stream RouteNote) {}
+			iv. bidirectional streaming RPC: client 和 server 端应用两个独立的 read-write stream，所以 client 和 server 可以以任意顺序进行读写，并且每个流会保留消息顺序。需要在 request 和 response 的类型前都加上 stream 关键字。
+			// Accepts a stream of RouteNotes sent while a route is being traversed,
+// while receiving other RouteNotes (e.g. from other users).
+rpc RouteChat(stream RouteNote) returns(stream RouteNote) {}
+			
+		c. 定义消息：
+			// Points are represented as latitude-longitude pairs in the E7 representation
+// (degrees multiplied by 10**7 and rounded to the nearest integer).
+// Latitudes should be in the range +/- 90 degrees and longitude should be in
+// the range +/- 180 degrees (inclusive).
+message Point{
+int32 latitude = 1;
+int32 longitude = 2;
+}
+	2. 利用protoc根据 *.proto中的定义生成相应的 client 和 server 的 interface
+	$ protoc --go_out=. --go_opt=paths=source_relative \ 
+	--go-grpc_out=. --go-grpc_opt=paths=source_relative \
+	routeguide/route_guide.proto
+	用以上指令会生成两个文件：
+		a. route_guide.pb.go：包含 protocol buff 里面的 服务和消息类型和定义
+		b. route_guide_grpc.pb.go：包含 client 和 server 调用函数所需要的 interface
+		【在实际生产中，我们将生成 pb 和 mock 的方式整理成 gen.go, 只需要使用 go generate 就可以生成二者】
+		
+	3. 实现不同的 RPC method （可以实现为 simple, server-side streaming, client-side streaming or bidirectional streaming RPC）
+	4. 并且实现不同的 client
+	5. 最后要将 server run 起来， 利用 lisent 和 register。
+Client 和 server 在不同的线程中跑，就可以将他们建立起来了。
